@@ -1,6 +1,8 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
-from app.api.routes_predict import JOB_STORE
+from app.db.session import get_db
+from app.repositories.ml_job_state_repository import MlJobStateRepository
 from app.schemas.status_response import JobStatusResponse
 
 router = APIRouter(tags=["status"])
@@ -11,8 +13,13 @@ router = APIRouter(tags=["status"])
     response_model=JobStatusResponse,
     status_code=status.HTTP_200_OK,
 )
-async def get_job_status(job_id: str) -> JobStatusResponse:
-    job = JOB_STORE.get(job_id)
+async def get_job_status(
+    job_id: str,
+    db: Session = Depends(get_db),
+) -> JobStatusResponse:
+    job_state_repo = MlJobStateRepository(db)
+    job = job_state_repo.get_by_job_id(job_id)
+
     if not job:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -20,7 +27,7 @@ async def get_job_status(job_id: str) -> JobStatusResponse:
         )
 
     return JobStatusResponse(
-        job_id=job_id,
-        status=job["status"],
-        updated_at=job["updated_at"],
+        job_id=job.job_id,
+        status=job.status,
+        updated_at=job.updated_at,
     )
