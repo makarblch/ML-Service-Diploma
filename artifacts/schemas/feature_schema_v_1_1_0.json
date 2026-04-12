@@ -1,0 +1,19 @@
+{
+  "model_version": "v1.1.0",
+  "required_features": [
+    "final_income",
+    "payments_bki",
+    "pti_bki",
+    "transaction_amt",
+    "company_size",
+    "company_age"
+  ],
+  "feature_order": [
+    "final_income",
+    "payments_bki",
+    "pti_bki",
+    "transaction_amt",
+    "company_size",
+    "company_age"
+  ]
+}

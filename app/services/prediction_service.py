@@ -14,6 +14,10 @@ from app.schemas.callback_payload import (
     PredictionCallbackPayload,
 )
 
+from app.ml.model_loader import ModelLoader
+from app.ml.schema_loader import SchemaLoader
+from app.services.prediction_input_builder import PredictionInputBuilder
+
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -73,8 +77,29 @@ class PredictionService:
                 model_version=model_version,
             )
 
-            model = ModelLoader.get_model(model_version)
-            predicted_turnover = model.predict(features)
+            # model = ModelLoader.get_model(model_version)
+            # predicted_turnover = model.predict(features)
+
+            pipeline = ModelLoader.load_model(model_record.artifact_path)
+            feature_schema = SchemaLoader.load_schema(model_record.feature_schema_path)
+
+            required_features = feature_schema["required_features"]
+            feature_order = feature_schema["feature_order"]
+
+            missing = [f for f in required_features if f not in features]
+            if missing:
+                raise ValueError(f"Missing required features: {missing}")
+
+            input_df = PredictionInputBuilder.build_dataframe(
+                features=features,
+                feature_order=feature_order,
+            )
+
+            prediction = pipeline.predict(input_df)
+
+            raw_predicted_turnover = float(prediction[0])
+
+            predicted_turnover = max(0.0, raw_predicted_turnover)
 
             result_payload = {
                 "predicted_turnover": predicted_turnover
