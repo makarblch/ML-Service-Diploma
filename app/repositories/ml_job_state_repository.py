@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.enums import JobStatus
 from app.db.models import MlJobState
 
 
@@ -64,6 +65,32 @@ class MlJobStateRepository:
             job.started_at = started_at
         if completed_at is not None:
             job.completed_at = completed_at
+
+        self.db.add(job)
+        self.db.commit()
+        self.db.refresh(job)
+        return job
+
+    
+    def claim_next_pending_job(self) -> MlJobState | None:
+        """Вернёт следующую доступную для запуска задачу"""
+        stmt = (
+            select(MlJobState)
+            .where(MlJobState.status == JobStatus.pending.value)
+            .order_by(MlJobState.created_at.asc())
+            .with_for_update(skip_locked=True)
+            .limit(1)
+        )
+
+        job = self.db.execute(stmt).scalar_one_or_none()
+        if not job:
+            self.db.rollback()
+            return None
+
+        now = utc_now()
+        job.status = JobStatus.running.value
+        job.started_at = now
+        job.updated_at = now
 
         self.db.add(job)
         self.db.commit()

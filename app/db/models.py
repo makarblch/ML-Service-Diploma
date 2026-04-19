@@ -34,7 +34,7 @@ class MlJobState(Base):
 
     job_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
-    callback_url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    callback_url: Mapped[str] = mapped_column(String(1024), nullable=True)
     model_version: Mapped[str | None] = mapped_column(
         String(64),
         ForeignKey("model_registry.model_version", ondelete="SET NULL"),

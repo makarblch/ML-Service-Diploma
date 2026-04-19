@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.repositories.ml_job_state_repository import MlJobStateRepository
-from app.schemas.status_response import JobStatusResponse
+from app.schemas.status_response import JobStatusResponse, PredictionResultResponse
 
 router = APIRouter(tags=["status"])
 
@@ -26,8 +26,15 @@ async def get_job_status(
             detail="Job not found",
         )
 
+    result = None
+
+    if job.result_payload_json:
+        result = PredictionResultResponse(**job.result_payload_json)
+
     return JobStatusResponse(
         job_id=job.job_id,
         status=job.status,
         updated_at=job.updated_at,
+        error_message=job.error_message,
+        result=result,
     )

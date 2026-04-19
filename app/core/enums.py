@@ -2,7 +2,7 @@ from enum import Enum
 
 
 class JobStatus(str, Enum):
-    accepted = "accepted"
+    # accepted = "accepted"
     pending = "pending"
     running = "running"
     completed = "completed"
