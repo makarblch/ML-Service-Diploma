@@ -7,7 +7,7 @@ from app.repositories.ml_job_state_repository import MlJobStateRepository
 from app.schemas.predict_request import PredictJobRequest
 from app.schemas.predict_response import PredictJobAcceptedResponse
 from app.services.logging_service import LoggingService
-from app.services.prediction_service import PredictionService
+# from app.services.prediction_service import PredictionService
 
 router = APIRouter(tags=["prediction"])
 
@@ -24,10 +24,18 @@ async def create_prediction_job(
     job_state_repo = MlJobStateRepository(db)
     logging_service = LoggingService(db)
 
+    # job_state_repo.create_job(
+    #     job_id=payload.job_id,
+    #     status=JobStatus.pending.value,
+    #     callback_url=str(payload.callback_url),
+    #     requested_payload_json=payload.model_dump(mode="json"),
+    #     model_version=payload.model_version,
+    # )
+
     job_state_repo.create_job(
         job_id=payload.job_id,
         status=JobStatus.pending.value,
-        callback_url=str(payload.callback_url),
+        callback_url=str(payload.callback_url) if payload.callback_url else None,
         requested_payload_json=payload.model_dump(mode="json"),
         model_version=payload.model_version,
     )
@@ -40,12 +48,12 @@ async def create_prediction_job(
         model_version=payload.model_version,
     )
 
-    prediction_service = PredictionService(db)
-    prediction_service.run_prediction(
-        job_id=payload.job_id,
-        features=payload.features.model_dump(),
-        requested_model_version=payload.model_version,
-    )
+    # prediction_service = PredictionService(db)
+    # prediction_service.run_prediction(
+    #     job_id=payload.job_id,
+    #     features=payload.features.model_dump(),
+    #     requested_model_version=payload.model_version,
+    # )
 
     return PredictJobAcceptedResponse(
         job_id=payload.job_id,

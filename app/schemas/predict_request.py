@@ -23,5 +23,5 @@ class PredictionFeatures(BaseSchema):
 class PredictJobRequest(BaseSchema):
     job_id: str = Field(..., min_length=1, max_length=64)
     features: PredictionFeatures
-    callback_url: HttpUrl
+    callback_url: HttpUrl | None = None
     model_version: str | None = Field(default=None, max_length=64)

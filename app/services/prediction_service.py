@@ -8,11 +8,11 @@ from app.repositories.model_registry_repository import ModelRegistryRepository
 from app.services.logging_service import LoggingService
 from app.services.callback_service import CallbackService
 from app.ml.model_loader import ModelLoader
-from app.schemas.callback_payload import (
-    CallbackModelInfo,
-    CallbackResult,
-    PredictionCallbackPayload,
-)
+# from app.schemas.callback_payload import (
+#     CallbackModelInfo,
+#     CallbackResult,
+#     PredictionCallbackPayload,
+# )
 
 from app.ml.model_loader import ModelLoader
 from app.ml.schema_loader import SchemaLoader
@@ -29,7 +29,7 @@ class PredictionService:
         self.job_state_repo = MlJobStateRepository(db)
         self.model_registry_repo = ModelRegistryRepository(db)
         self.logging_service = LoggingService(db)
-        self.callback_service = CallbackService()
+        # self.callback_service = CallbackService()
 
     def run_prediction(
         self,
@@ -41,7 +41,7 @@ class PredictionService:
         if not job_state:
             raise ValueError(f"Job {job_id} not found")
 
-        callback_url = job_state.callback_url
+        # callback_url = job_state.callback_url
 
         try:
             self.logging_service.log_event(
@@ -102,7 +102,8 @@ class PredictionService:
             predicted_turnover = max(0.0, raw_predicted_turnover)
 
             result_payload = {
-                "predicted_turnover": predicted_turnover
+                "predicted_turnover": predicted_turnover,
+                "model_version": model_version
             }
 
             completed_at = utc_now()
@@ -131,26 +132,26 @@ class PredictionService:
                 model_version=model_version,
             )
 
-            callback_payload = PredictionCallbackPayload(
-                job_id=job_id,
-                status=JobStatus.completed,
-                result=CallbackResult(predicted_turnover=predicted_turnover),
-                model_info=CallbackModelInfo(model_version=model_version),
-                completed_at=completed_at,
-            )
+            # callback_payload = PredictionCallbackPayload(
+            #     job_id=job_id,
+            #     status=JobStatus.completed,
+            #     result=CallbackResult(predicted_turnover=predicted_turnover),
+            #     model_info=CallbackModelInfo(model_version=model_version),
+            #     completed_at=completed_at,
+            # )
 
-            self.callback_service.send_prediction_callback(
-                callback_url=callback_url,
-                payload=callback_payload,
-            )
+            # self.callback_service.send_prediction_callback(
+            #     callback_url=callback_url,
+            #     payload=callback_payload,
+            # )
 
-            self.logging_service.log_event(
-                job_id=job_id,
-                event_type=JobEventType.callback_sent.value,
-                status=JobStatus.completed.value,
-                message="Callback delivered successfully",
-                model_version=model_version,
-            )
+            # self.logging_service.log_event(
+            #     job_id=job_id,
+            #     event_type=JobEventType.callback_sent.value,
+            #     status=JobStatus.completed.value,
+            #     message="Callback delivered successfully",
+            #     model_version=model_version,
+            # )
 
             return {
                 "job_id": job_id,
@@ -184,39 +185,39 @@ class PredictionService:
             )
 
             # Пробуем отправить callback об ошибке
-            try:
-                error_callback_payload = PredictionCallbackPayload(
-                    job_id=job_id,
-                    status=JobStatus.failed,
-                    error_message=str(exc),
-                    completed_at=completed_at,
-                )
-
-                self.callback_service.send_prediction_callback(
-                    callback_url=callback_url,
-                    payload=error_callback_payload,
-                )
-
-                self.logging_service.log_event(
-                    job_id=job_id,
-                    event_type=JobEventType.callback_sent.value,
-                    status=JobStatus.failed.value,
-                    message="Failure callback delivered successfully",
-                )
-            except Exception as callback_exc:
-                self.logging_service.log_event(
-                    job_id=job_id,
-                    event_type=JobEventType.callback_failed.value,
-                    status=JobStatus.failed.value,
-                    message=str(callback_exc),
-                )
-
-                self.logging_service.log_error(
-                    job_id=job_id,
-                    error_stage=ErrorStage.callback.value,
-                    error_type=type(callback_exc).__name__,
-                    error_message=str(callback_exc),
-                )
+            # try:
+            #     error_callback_payload = PredictionCallbackPayload(
+            #         job_id=job_id,
+            #         status=JobStatus.failed,
+            #         error_message=str(exc),
+            #         completed_at=completed_at,
+            #     )
+            #
+            #     self.callback_service.send_prediction_callback(
+            #         callback_url=callback_url,
+            #         payload=error_callback_payload,
+            #     )
+            #
+            #     self.logging_service.log_event(
+            #         job_id=job_id,
+            #         event_type=JobEventType.callback_sent.value,
+            #         status=JobStatus.failed.value,
+            #         message="Failure callback delivered successfully",
+            #     )
+            # except Exception as callback_exc:
+            #     self.logging_service.log_event(
+            #         job_id=job_id,
+            #         event_type=JobEventType.callback_failed.value,
+            #         status=JobStatus.failed.value,
+            #         message=str(callback_exc),
+            #     )
+            #
+            #     self.logging_service.log_error(
+            #         job_id=job_id,
+            #         error_stage=ErrorStage.callback.value,
+            #         error_type=type(callback_exc).__name__,
+            #         error_message=str(callback_exc),
+            #     )
 
             raise
 
