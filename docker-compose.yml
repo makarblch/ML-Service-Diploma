@@ -25,5 +25,20 @@ services:
     volumes:
       - .:/app
 
+  worker:
+    build: .
+    container_name: ml_service_worker
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+    volumes:
+      - .:/app
+    command: [ "python", "-m", "app.workers.prediction_worker" ]
+
 volumes:
   postgres_data:

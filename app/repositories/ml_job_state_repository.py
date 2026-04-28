@@ -19,7 +19,7 @@ class MlJobStateRepository:
         self,
         job_id: str,
         status: str,
-        callback_url: str,
+        callback_url: str | None,
         requested_payload_json: dict | None = None,
         model_version: str | None = None,
     ) -> MlJobState:
@@ -71,28 +71,27 @@ class MlJobStateRepository:
         self.db.refresh(job)
         return job
 
-    
     def claim_next_pending_job(self) -> MlJobState | None:
-        """Вернёт следующую доступную для запуска задачу"""
-        stmt = (
-            select(MlJobState)
-            .where(MlJobState.status == JobStatus.pending.value)
-            .order_by(MlJobState.created_at.asc())
-            .with_for_update(skip_locked=True)
-            .limit(1)
-        )
+        """Атомарно забирает следующую pending-задачу и переводит её в running."""
+        with self.db.begin():
+            stmt = (
+                select(MlJobState)
+                .where(MlJobState.status == JobStatus.pending.value)
+                .order_by(MlJobState.created_at.asc())
+                .with_for_update(skip_locked=True)
+                .limit(1)
+            )
 
-        job = self.db.execute(stmt).scalar_one_or_none()
-        if not job:
-            self.db.rollback()
-            return None
+            job = self.db.execute(stmt).scalar_one_or_none()
+            if job is None:
+                return None
 
-        now = utc_now()
-        job.status = JobStatus.running.value
-        job.started_at = now
-        job.updated_at = now
+            now = utc_now()
+            job.status = JobStatus.running.value
+            job.started_at = now
+            job.updated_at = now
 
-        self.db.add(job)
-        self.db.commit()
+            self.db.add(job)
+
         self.db.refresh(job)
         return job
