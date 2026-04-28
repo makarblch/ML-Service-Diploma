@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -35,9 +37,11 @@ async def create_prediction_job(
                 detail=f"Model version '{payload.model_version}' not found in model_registry",
             )
 
+    job_id = str(uuid.uuid4())
+
     try:
         job_state_repo.create_job(
-            job_id=payload.job_id,
+            job_id=job_id,
             status=JobStatus.pending.value,
             callback_url=str(payload.callback_url) if payload.callback_url else None,
             requested_payload_json=payload.model_dump(mode="json"),
@@ -49,7 +53,7 @@ async def create_prediction_job(
         if isinstance(exc.orig, UniqueViolation):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Job with job_id='{payload.job_id}' already exists",
+                detail=f"Job with job_id='{job_id}' already exists",
             )
 
         raise HTTPException(
@@ -58,7 +62,7 @@ async def create_prediction_job(
         )
 
     logging_service.log_event(
-        job_id=payload.job_id,
+        job_id=job_id,
         event_type=JobEventType.job_received.value,
         status=JobStatus.pending.value,
         message="Prediction job accepted by Python ML service",
@@ -66,7 +70,7 @@ async def create_prediction_job(
     )
 
     return PredictJobAcceptedResponse(
-        job_id=payload.job_id,
+        job_id=job_id,
         status=JobStatus.pending,
         message="Prediction job accepted",
     )
