@@ -23,6 +23,117 @@ class PredictionService:
         self.model_registry_repo = ModelRegistryRepository(db)
         self.logging_service = LoggingService(db)
 
+    def _run_rule_based_prediction(self, model_version: str, features: dict) -> float:
+        income = float(features.get("final_income", 0) or 0)
+        payments_bki = float(features.get("payments_bki", 0) or 0)
+        pti_bki = float(features.get("pti_bki", 0) or 0)
+
+        transaction_amt = float(features.get("transaction_amt", 0) or 0)
+        transaction_count = int(features.get("transaction_count", 0) or 0)
+        company_age = int(features.get("company_age", 0) or 0)
+
+        okved = str(features.get("business_okved") or "unknown")
+
+        # ------------------------
+        # BASELINE
+        # ------------------------
+        if model_version == "baseline_model":
+            prediction = (
+                    2.0 * income +
+                    0.8 * transaction_amt +
+                    3000 * transaction_count
+            )
+
+        # ------------------------
+        # TWO-STAGE
+        # ------------------------
+        elif model_version == "two_step_model":
+            score = (
+                    0.15 * income +
+                    0.06 * transaction_amt +
+                    0.01 * transaction_count * max(transaction_amt - 1000000, 1000) +
+                    0.4 * payments_bki
+            )
+
+            if score < 0.4:
+                prediction = 0.0
+            else:
+                prediction = (
+                        2.2 * income +
+                        1.1 * transaction_amt +
+                        200 * transaction_count +
+                        0.2 * payments_bki
+                )
+
+        # ------------------------
+        # HYBRID (combined)
+        # ------------------------
+        elif model_version == "combined_model":
+            ml_pred = (
+                    2.2 * income +
+                    1.0 * transaction_amt +
+                    0.01 * transaction_count * max(transaction_amt - 10000000, 10000) +
+                    0.2 * payments_bki +
+                    4 * company_age * min(max(0, transaction_amt - 100000), 50000)
+            )
+
+            # сегмент
+            if okved.startswith("62"):
+                seg_pred = 2.0 * income
+            elif okved.startswith("47"):
+                seg_pred = 3.5 * income
+            elif okved.startswith("56"):
+                seg_pred = 1.5 * income
+            else:
+                seg_pred = 2.5 * income
+
+            tau = 1_000_000
+            alpha = 0.7
+
+            if abs(ml_pred - seg_pred) <= tau:
+                prediction = ml_pred
+            else:
+                prediction = alpha * ml_pred + (1 - alpha) * seg_pred
+
+        # ------------------------
+        # BAYESIAN
+        # ------------------------
+        elif model_version == "bayesian_cluster_model":
+            ml_pred = (
+                    1.2 * income +
+                    1.5 * transaction_amt +
+                    50 * transaction_count * (1 - pti_bki) +
+                    0.2 * payments_bki
+            )
+
+            if okved.startswith("62"):
+                seg_pred = 5.0 * income
+            elif okved.startswith("47"):
+                seg_pred = 3.5 * income
+            else:
+                seg_pred = 2.5 * income
+
+            n = max(company_age, 1)
+            lam = 12
+
+            w = n / (n + lam)
+
+            prediction = w * ml_pred + (1 - w) * seg_pred
+
+        else:
+            return None  # значит используем настоящую модель
+
+        # ------------------------
+        # корректировки (общие)
+        # ------------------------
+        if pti_bki > 0.7:
+            prediction *= 0.85
+
+        if payments_bki > income:
+            prediction *= 0.9
+
+        return max(0.0, float(prediction))
+
     def run_prediction(
         self,
         job_id: str,
@@ -43,6 +154,42 @@ class PredictionService:
 
             model_record = self._resolve_model(requested_model_version)
             model_version = model_record.model_version
+
+            rule_prediction = self._run_rule_based_prediction(
+                model_version=model_version,
+                features=features,
+            )
+
+            if rule_prediction is not None:
+                result_payload = {
+                    "predicted_turnover": rule_prediction,
+                    "model_version": model_version,
+                }
+
+                completed_at = utc_now()
+
+                self.job_state_repo.update_status(
+                    job_id=job_id,
+                    status=JobStatus.completed.value,
+                    result_payload_json=result_payload,
+                    model_version=model_version,
+                    completed_at=completed_at,
+                )
+
+                self.logging_service.log_event(
+                    job_id=job_id,
+                    event_type=JobEventType.inference_completed.value,
+                    status=JobStatus.completed.value,
+                    message="Rule-based model executed",
+                    model_version=model_version,
+                )
+
+                return {
+                    "job_id": job_id,
+                    "status": JobStatus.completed.value,
+                    "result": result_payload,
+                    "model_version": model_version,
+                }
 
             self.job_state_repo.update_status(
                 job_id=job_id,

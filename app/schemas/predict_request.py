@@ -9,8 +9,11 @@ class PredictionFeatures(BaseSchema):
     payments_bki: float = Field(..., ge=0)
     pti_bki: float = Field(..., ge=0)
     transaction_amt: float = Field(..., ge=0)
+    transaction_count: int = Field(default=0, ge=0)
+    business_okved: str | None = Field(default=None, max_length=32)
     company_size: CompanySize
     company_age: int = Field(..., ge=0)
+
 
     @field_validator("pti_bki")
     @classmethod
